@@ -1,0 +1,9 @@
+import { supabase } from './supabase';
+const API=(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/,'');
+const DEVICE_KEY='fitted_device_token';
+function deviceToken(){let v=localStorage.getItem(DEVICE_KEY);if(!v){v=crypto.randomUUID();localStorage.setItem(DEVICE_KEY,v)}return v}
+async function headers(extra:HeadersInit={}){const {data}=await supabase.auth.getSession();const token=data.session?.access_token;return new Headers({...extra,...(token?{Authorization:`Bearer ${token}`}:{}) ,'X-Device-Token':deviceToken(),'X-Timezone':Intl.DateTimeFormat().resolvedOptions().timeZone,'X-Locale':navigator.language,'X-Screen-Category':window.innerWidth<640?'mobile':window.innerWidth<1024?'tablet':'desktop'});}
+export async function api<T>(path:string,init:RequestInit={}):Promise<T>{const h=await headers(init.headers);const res=await fetch(`${API}${path}`,{...init,headers:h,credentials:'include'});if(res.status===204)return undefined as T;const data=await res.json().catch(()=>({}));if(!res.ok){const err=new Error(data.message||'Request failed') as Error & {code?:string;details?:unknown};err.code=data.code;err.details=data.details;throw err}return data as T}
+export async function uploadGeneration(person:File,garment:File){const fd=new FormData();fd.append('person_image',person);fd.append('garment_image',garment);fd.append('idempotency_key',crypto.randomUUID());return api('/api/generations',{method:'POST',body:fd});}
+export function wsUrl(generationId:string,token?:string){const base=API.replace(/^http/,'ws');return `${base}/ws/generations/${generationId}${token?`?token=${encodeURIComponent(token)}`:''}`}
+export async function analytics(event:string,metadata:Record<string,unknown>={}){try{await api('/api/analytics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event,metadata})})}catch{/* analytics must not block UX */}}
