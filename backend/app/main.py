@@ -73,19 +73,80 @@ app.add_middleware(CORSMiddleware,allow_origins=settings().origins,allow_credent
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self,request:Request,call_next):
-        request_id=request.headers.get("x-request-id",str(uuid.uuid4()))[:80];request.state.request_id=request_id;request.state.set_guest_cookie=None
-        started=time.perf_counter()
-        response=await call_next(request)
-        response.headers["X-Request-ID"]=request_id
-        response.headers["X-Content-Type-Options"]="nosniff";response.headers["Referrer-Policy"]="strict-origin-when-cross-origin";response.headers["Permissions-Policy"]="camera=(self), microphone=(), geolocation=(), interest-cohort=()";response.headers["X-Frame-Options"]="DENY"
-        cfg=settings();response.headers["Content-Security-Policy"]="default-src 'self'; img-src 'self' data: blob: https://*.supabase.co https://*.fal.media https://cdn.fashn.ai; connect-src 'self' " + " ".join(cfg.origins) + " https://*.supabase.co wss://*.supabase.co " + cfg.csp_list(cfg.csp_connect_origins) + "; script-src 'self' " + cfg.csp_list(cfg.csp_script_origins) + "; frame-src 'self' " + cfg.csp_list(cfg.csp_frame_origins) + "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-ancestors 'none'"
-        if settings().production:response.headers["Strict-Transport-Security"]="max-age=63072000; includeSubDomains; preload"
-        if request.state.set_guest_cookie:response.set_cookie(COOKIE_NAME,request.state.set_guest_cookie,max_age=30*86400,httponly=True,secure=settings().production,samesite="lax",path="/")
-        response.headers["Server-Timing"]=f"app;dur={(time.perf_counter()-started)*1000:.1f}"
-        return response
-app.add_middleware(SecurityMiddleware)
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get(
+            "x-request-id",
+            str(uuid.uuid4())
+        )[:80]
 
+        request.state.request_id = request_id
+        request.state.set_guest_cookie = None
+
+        started = time.perf_counter()
+
+        response = await call_next(request)
+
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "camera=(self), microphone=(), geolocation=(), interest-cohort=()"
+        )
+        response.headers["X-Frame-Options"] = "DENY"
+
+        cfg = settings()
+
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "img-src 'self' data: blob: "
+            "https://*.supabase.co "
+            "https://*.fal.media "
+            "https://cdn.fashn.ai; "
+            "connect-src 'self' "
+            + " ".join(cfg.origins)
+            + " https://*.supabase.co "
+            "wss://*.supabase.co "
+            + cfg.csp_list(cfg.csp_connect_origins)
+            + "; "
+            "script-src 'self' "
+            + cfg.csp_list(cfg.csp_script_origins)
+            + "; "
+            "frame-src 'self' "
+            + cfg.csp_list(cfg.csp_frame_origins)
+            + "; "
+            "style-src 'self' 'unsafe-inline' "
+            "https://fonts.googleapis.com; "
+            "font-src https://fonts.gstatic.com; "
+            "frame-ancestors 'none'"
+        )
+
+        if settings().production:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains; preload"
+            )
+
+        # Guest cookie:
+        # Production frontend/API are on different hosts,
+        # so cross-site requests require SameSite=None + Secure.
+        if request.state.set_guest_cookie:
+            response.set_cookie(
+                key=COOKIE_NAME,
+                value=request.state.set_guest_cookie,
+                max_age=30 * 86400,
+                httponly=True,
+                secure=settings().production,
+                samesite="none" if settings().production else "lax",
+                path="/",
+            )
+
+        response.headers["Server-Timing"] = (
+            f"app;dur={(time.perf_counter() - started) * 1000:.1f}"
+        )
+
+        return response
+
+
+app.add_middleware(SecurityMiddleware)
 
 @app.exception_handler(ApiError)
 async def api_error(request:Request,exc:ApiError):
