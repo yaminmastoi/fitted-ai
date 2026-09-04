@@ -129,15 +129,15 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # Production frontend/API are on different hosts,
         # so cross-site requests require SameSite=None + Secure.
         if request.state.set_guest_cookie:
-            response.set_cookie(
-                key=COOKIE_NAME,
-                value=request.state.set_guest_cookie,
-                max_age=30 * 86400,
-                httponly=True,
-                secure=settings().production,
-                samesite="none" if settings().production else "lax",
-                path="/",
-            )
+        response.set_cookie(
+    key=COOKIE_NAME,
+    value=request.state.set_guest_cookie,
+    max_age=30 * 86400,
+    httponly=True,
+    secure=settings().production,
+    samesite="lax",
+    path="/",
+)
 
         response.headers["Server-Timing"] = (
             f"app;dur={(time.perf_counter() - started) * 1000:.1f}"

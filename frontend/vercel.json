@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://fitted-api-nine.vercel.app/api/:path*"
+    },
+    {
+      "source": "/ws/:path*",
+      "destination": "https://fitted-api-nine.vercel.app/ws/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
